@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="bg" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Ново устройство</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<header><h1>Мониторинг на мрежата</h1></header>
+<main>
+    <h2>Ново устройство</h2>
+    <form th:action="@{/devices}" th:object="${deviceForm}" method="post" class="form">
+
+        <label>Име
+            <input type="text" th:field="*{name}">
+        </label>
+        <p class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}"></p>
+
+        <label>IP адрес
+            <input type="text" th:field="*{ipAddress}" placeholder="192.168.1.1">
+        </label>
+        <p class="error" th:if="${#fields.hasErrors('ipAddress')}" th:errors="*{ipAddress}"></p>
+
+        <label>Тип
+            <select th:field="*{type}">
+                <option th:each="t : ${types}" th:value="${t}" th:text="${t}"></option>
+            </select>
+        </label>
+
+        <label>SNMP версия
+            <select th:field="*{snmpVersion}">
+                <option th:each="v : ${versions}" th:value="${v}" th:text="${v}"></option>
+            </select>
+        </label>
+
+        <label>SNMP порт
+            <input type="number" th:field="*{snmpPort}">
+        </label>
+        <p class="error" th:if="${#fields.hasErrors('snmpPort')}" th:errors="*{snmpPort}"></p>
+
+        <label>Read community
+            <input type="text" th:field="*{readCommunity}">
+        </label>
+        <p class="error" th:if="${#fields.hasErrors('readCommunity')}" th:errors="*{readCommunity}"></p>
+
+        <label>Write community (по избор)
+            <input type="password" th:field="*{writeCommunity}">
+        </label>
+
+        <div class="actions">
+            <button type="submit" class="btn">Запази</button>
+            <a th:href="@{/devices}">Отказ</a>
+        </div>
+    </form>
+</main>
+</body>
+</html>

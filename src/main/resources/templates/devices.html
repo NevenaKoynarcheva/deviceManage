@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="bg" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="30">
+    <title>Устройства</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<header><h1>Мониторинг на мрежата</h1></header>
+<main>
+    <div class="toolbar">
+        <h2>Устройства</h2>
+        <a class="btn" th:href="@{/devices/new}">+ Добави устройство</a>
+    </div>
+
+    <p class="flash" th:if="${message}" th:text="${message}"></p>
+
+    <table th:unless="${devices.isEmpty()}">
+        <thead>
+        <tr>
+            <th>Статус</th><th>Име</th><th>IP адрес</th>
+            <th>Тип</th><th>SNMP</th><th>Последно видяно</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="d : ${devices}">
+            <td><span class="badge" th:classappend="${#strings.toLowerCase(d.status)}"
+                      th:text="${d.status}"></span></td>
+            <td th:text="${d.name}"></td>
+            <td th:text="${d.ipAddress}"></td>
+            <td th:text="${d.type}"></td>
+            <td th:text="${d.snmpVersion}"></td>
+            <td th:text="${d.lastSeen != null ? #temporals.format(d.lastSeen, 'dd.MM.yyyy HH:mm:ss') : '—'}"></td>
+        </tr>
+        </tbody>
+    </table>
+    <p th:if="${devices.isEmpty()}">Няма добавени устройства.</p>
+</main>
+</body>
+</html>

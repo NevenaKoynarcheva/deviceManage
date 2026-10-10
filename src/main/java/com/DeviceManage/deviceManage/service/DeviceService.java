@@ -1,16 +1,19 @@
 package com.DeviceManage.deviceManage.service;
 
+import com.DeviceManage.deviceManage.dto.DeviceForm;
 import com.DeviceManage.deviceManage.model.*;
 import com.DeviceManage.deviceManage.repository.*;
 import com.DeviceManage.deviceManage.snmp.SnmpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.snmp4j.smi.Variable;
+import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 public class DeviceService {
@@ -67,5 +70,33 @@ public class DeviceService {
         deviceRepository.save(device);
         log.info("{} ({}) -> {} за {} ms", device.getName(), device.getIpAddress(),
                 device.getStatus(), sample.getResponseTimeMs());
+    }
+
+    public List<Device> findAll() {
+        return deviceRepository.findAll(Sort.by("name"));
+    }
+
+    public Device addDevice(DeviceForm form) {
+        if (deviceRepository.existsByIpAddress(form.getIpAddress())) {
+            throw new IllegalArgumentException("Устройство с този IP адрес вече съществува");
+        }
+        Device d = new Device();
+        d.setName(form.getName().trim());
+        d.setIpAddress(form.getIpAddress().trim());
+        d.setType(form.getType());
+        d.setSnmpVersion(form.getSnmpVersion());
+        d.setSnmpPort(form.getSnmpPort());
+        d.setReadCommunity(form.getReadCommunity());
+        d.setWriteCommunity(form.getWriteCommunity() == null || form.getWriteCommunity().isBlank()
+                ? null : form.getWriteCommunity());
+        Device saved = deviceRepository.save(d);
+
+        // Първа проверка веднага, за да не чакаме 30 секунди за статуса
+        try {
+            pollDevice(saved);
+        } catch (Exception e) {
+            log.warn("Първата проверка на {} неуспешна: {}", saved.getIpAddress(), e.getMessage());
+        }
+        return saved;
     }
 }
