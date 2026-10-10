@@ -21,7 +21,7 @@ public class SnmpClient {
         transport.listen();
     }
 
-    public String get(String ip, int port, String community, String oid) throws IOException {
+    public Variable getVariable(String ip, int port, String community, String oid) throws IOException {
         CommunityTarget<Address> target = new CommunityTarget<>();
         target.setCommunity(new OctetString(community));
         target.setAddress(GenericAddress.parse("udp:" + ip + "/" + port));
@@ -46,7 +46,12 @@ public class SnmpClient {
         if (vb.isException()) {
             return null; // OID-то не съществува на това устройство
         }
-        return vb.getVariable().toString();
+        return vb.getVariable();
+    }
+
+    public String get(String ip, int port, String community, String oid) throws IOException {
+        Variable v = getVariable(ip, port, community, oid);
+        return v == null ? null : v.toString();
     }
 
     @PreDestroy
