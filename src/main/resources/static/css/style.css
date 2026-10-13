@@ -50,3 +50,5 @@ header nav form.inline { margin: 0; }
 .link-btn { background: none; border: none; color: #fff; cursor: pointer; font-size: 15px; padding: 0; }
 .link-btn:hover { text-decoration: underline; }
 .form.login { margin: 40px auto; }
+.topology { height: 420px; background: #fff; border-radius: 8px; border: 1px solid #e3e6ea; }
+.hint { color: #57606a; font-size: 13px; }

@@ -31,7 +31,7 @@ public class SecurityConfig {
                 // Правилата се проверяват отгоре надолу - важи първото съвпадение
                 .requestMatchers("/login", "/css/**").permitAll()
                 .requestMatchers("/logout").authenticated()
-                .requestMatchers("/devices/new", "/devices/*/edit", "/devices/*/manage/**").hasRole("ADMIN")
+                .requestMatchers("/devices/new", "/devices/*/edit", "/devices/*/manage/**", "/links/new").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/**").hasRole("ADMIN") // всяка промяна
                 .anyRequest().authenticated())
             .formLogin(form -> form
