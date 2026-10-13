@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="bg" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Вход</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<header><h1>Мониторинг на мрежата</h1></header>
+<main>
+    <form th:action="@{/login}" method="post" class="form login">
+        <h2>Вход</h2>
+        <p class="flash error-box" th:if="${param.error}">Грешно потребителско име или парола.</p>
+        <p class="flash" th:if="${param.logout}">Излязохте от системата.</p>
+        <label>Потребителско име
+            <input type="text" name="username" autofocus required>
+        </label>
+        <label>Парола
+            <input type="password" name="password" required>
+        </label>
+        <div class="actions">
+            <button type="submit" class="btn">Вход</button>
+        </div>
+    </form>
+</main>
+</body>
+</html>

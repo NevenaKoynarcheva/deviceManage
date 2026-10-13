@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="bg" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="'Управление - ' + ${device.name}">Управление</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<header>
+    <h1>Мониторинг на мрежата</h1>
+    <nav>
+        <a th:href="@{/}">Начало</a>
+        <a th:href="@{/devices}">Устройства</a>
+        <span class="user" th:if="${currentUser}" th:text="${currentUser + (isAdmin ? ' (администратор)' : ' (наблюдател)')}"></span>
+        <form th:if="${currentUser}" th:action="@{/logout}" method="post" class="inline">
+            <button type="submit" class="link-btn">Изход</button>
+        </form>
+    </nav>
+</header>
+<main>
+    <a th:href="@{/devices/{id}(id=${device.id})}">← Към устройството</a>
+    <h2 th:text="'Управление: ' + ${device.name}"></h2>
+
+    <p class="flash" th:if="${message}" th:text="${message}"></p>
+    <p class="flash error-box" th:if="${error}" th:text="${error}"></p>
+    <p class="flash error-box" th:if="${device.writeCommunity == null}">
+        Устройството няма зададена write community, затова промените ще бъдат отказани.
+        Добавете я от „Редактирай“.
+    </p>
+
+    <h3>Системна информация</h3>
+    <table>
+        <thead><tr><th>Поле</th><th>Текуща стойност</th><th>Нова стойност</th></tr></thead>
+        <tbody>
+        <tr th:each="e : ${systemInfo}">
+            <td><b th:text="${e.key.label}"></b> <small th:text="'(' + ${e.key.mibName} + ')'"></small></td>
+            <td th:text="${e.value != null ? e.value : '—'}"></td>
+            <td>
+                <form th:action="@{/devices/{id}/manage/system(id=${device.id})}" method="post" class="inline">
+                    <input type="hidden" name="field" th:value="${e.key}">
+                    <input type="text" name="value" maxlength="255" th:value="${e.value}">
+                    <button type="submit" class="btn">Запиши</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+
+    <h3>Интерфейси</h3>
+    <p th:if="${interfaces.isEmpty()}">Няма данни за интерфейси.</p>
+    <table th:unless="${interfaces.isEmpty()}">
+        <thead><tr><th>Статус</th><th>#</th><th>Интерфейс</th><th>Действие</th></tr></thead>
+        <tbody>
+        <tr th:each="i : ${interfaces}">
+            <td><span class="badge" th:classappend="${i.operUp ? 'up' : 'down'}"
+                      th:text="${i.operUp ? 'UP' : 'DOWN'}"></span></td>
+            <td th:text="${i.ifIndex}"></td>
+            <td th:text="${i.name}"></td>
+            <td>
+                <form th:action="@{/devices/{id}/manage/interfaces/{ifIndex}(id=${device.id}, ifIndex=${i.ifIndex})}"
+                      method="post" class="inline">
+                    <input type="hidden" name="up" value="true">
+                    <button type="submit" class="btn">Включи</button>
+                </form>
+                <form th:action="@{/devices/{id}/manage/interfaces/{ifIndex}(id=${device.id}, ifIndex=${i.ifIndex})}"
+                      method="post" class="inline"
+                      onsubmit="return confirm('Изключването на интерфейса може да прекъсне връзката с устройството. Продължаване?');">
+                    <input type="hidden" name="up" value="false">
+                    <button type="submit" class="btn danger">Изключи</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+
+    <h3>Журнал на промените</h3>
+    <p th:if="${history.isEmpty()}">Все още няма направени промени.</p>
+    <table th:unless="${history.isEmpty()}">
+        <thead><tr><th>Време</th><th>Потребител</th><th>Операция</th><th>Стара стойност</th><th>Нова стойност</th><th>Резултат</th></tr></thead>
+        <tbody>
+        <tr th:each="h : ${history}">
+            <td th:text="${#temporals.format(h.performedAt, 'dd.MM.yyyy HH:mm:ss')}"></td>
+            <td th:text="${h.username != null ? h.username : '—'}"></td>
+            <td th:text="${h.operation}"></td>
+            <td th:text="${h.oldValue != null ? h.oldValue : '—'}"></td>
+            <td th:text="${h.newValue}"></td>
+            <td>
+                <span class="badge" th:classappend="${h.success ? 'up' : 'down'}"
+                      th:text="${h.success ? 'Успех' : 'Грешка'}"></span>
+                <div th:if="${h.message}"><small th:text="${h.message}"></small></div>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</main>
+</body>
+</html>

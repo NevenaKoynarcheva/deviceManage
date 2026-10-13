@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="bg" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="30">
+    <title>Начало</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<header>
+    <h1>Мониторинг на мрежата</h1>
+    <nav>
+        <a th:href="@{/}">Начало</a>
+        <a th:href="@{/devices}">Устройства</a>
+        <span class="user" th:if="${currentUser}" th:text="${currentUser + (isAdmin ? ' (администратор)' : ' (наблюдател)')}"></span>
+        <form th:if="${currentUser}" th:action="@{/logout}" method="post" class="inline">
+            <button type="submit" class="link-btn">Изход</button>
+        </form>
+    </nav>
+</header>
+<main>
+    <h2>Състояние на мрежата</h2>
+
+    <div class="stats">
+        <a class="stat" th:href="@{/devices}"><span>Устройства</span><b th:text="${total}">0</b></a>
+        <div class="stat up"><span>Достъпни</span><b th:text="${up}">0</b></div>
+        <div class="stat down"><span>Недостъпни</span><b th:text="${down}">0</b></div>
+        <div class="stat unknown"><span>Непроверени</span><b th:text="${unknown}">0</b></div>
+    </div>
+
+    <h3>Проблеми в момента</h3>
+    <p class="flash" th:if="${problems.isEmpty()}">Няма открити проблеми. Всички устройства работят нормално.</p>
+
+    <table th:unless="${problems.isEmpty()}">
+        <thead>
+        <tr><th>Статус</th><th>Устройство</th><th>IP адрес</th><th>Проблем</th><th>Последно видяно</th></tr>
+        </thead>
+        <tbody>
+        <tr th:each="o : ${problems}">
+            <td><span class="badge" th:classappend="${#strings.toLowerCase(o.device().status)}"
+                      th:text="${o.device().status}"></span></td>
+            <td><a th:href="@{/devices/{id}(id=${o.device().id})}" th:text="${o.device().name}"></a></td>
+            <td th:text="${o.device().ipAddress}"></td>
+            <td>
+                <div th:each="p : ${o.problems()}" th:text="${p}"></div>
+            </td>
+            <td th:text="${o.device().lastSeen != null ? #temporals.format(o.device().lastSeen, 'dd.MM.yyyy HH:mm:ss') : '—'}"></td>
+        </tr>
+        </tbody>
+    </table>
+</main>
+</body>
+</html>
