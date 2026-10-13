@@ -45,6 +45,7 @@ public class DeviceService {
     private final MetricSampleRepository metricSampleRepository;
     private final InterfaceSampleRepository interfaceSampleRepository;
     private final ChangeLogRepository changeLogRepository;
+    private final MetricHourlyRepository metricHourlyRepository;
     private final SnmpClient snmpClient;
 
     private final PingClient pingClient;
@@ -54,6 +55,7 @@ public class DeviceService {
                          MetricSampleRepository metricSampleRepository,
                          InterfaceSampleRepository interfaceSampleRepository,
                          ChangeLogRepository changeLogRepository,
+                         MetricHourlyRepository metricHourlyRepository,
                          SnmpClient snmpClient,
                          PingClient pingClient,
                          VendorProfileResolver vendorProfiles) {
@@ -61,6 +63,7 @@ public class DeviceService {
         this.metricSampleRepository = metricSampleRepository;
         this.interfaceSampleRepository = interfaceSampleRepository;
         this.changeLogRepository = changeLogRepository;
+        this.metricHourlyRepository = metricHourlyRepository;
         this.snmpClient = snmpClient;
         this.pingClient = pingClient;
         this.vendorProfiles = vendorProfiles;
@@ -90,9 +93,14 @@ public class DeviceService {
     public List<MetricPoint> getMetrics(Long deviceId, int hours) {
         LocalDateTime to = LocalDateTime.now();
         LocalDateTime from = to.minusHours(hours);
-        return metricSampleRepository
-                .findByDeviceIdAndCollectedAtBetweenOrderByCollectedAtAsc(deviceId, from, to)
-                .stream().map(MetricPoint::from).toList();
+        // Старата част на периода идва от часовите обобщения, новата - от подробните измервания.
+        // Двете не се застъпват, защото подробните редове се изтриват след агрегирането.
+        List<MetricPoint> points = new ArrayList<>();
+        metricHourlyRepository.findByDeviceIdAndHourStartBetweenOrderByHourStartAsc(deviceId, from, to)
+                .forEach(h -> points.add(MetricPoint.from(h)));
+        metricSampleRepository.findByDeviceIdAndCollectedAtBetweenOrderByCollectedAtAsc(deviceId, from, to)
+                .forEach(s -> points.add(MetricPoint.from(s)));
+        return points;
     }
     public void pollDevice(Device device) throws IOException {
         MetricSample sample = new MetricSample();
@@ -317,6 +325,7 @@ public class DeviceService {
     public void deleteDevice(Long id) {
         Device d = findById(id);
         changeLogRepository.deleteAllByDeviceId(id);
+        metricHourlyRepository.deleteAllByDeviceId(id);
         interfaceSampleRepository.deleteAllByDeviceId(id);
         metricSampleRepository.deleteAllByDeviceId(id);
         deviceRepository.delete(d);

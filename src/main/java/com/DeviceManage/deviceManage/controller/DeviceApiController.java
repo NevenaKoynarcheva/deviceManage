@@ -20,7 +20,7 @@ public class DeviceApiController {
     public List<MetricPoint> metrics(@PathVariable Long id,
                                      @RequestParam(defaultValue = "1") int hours) {
         deviceService.findById(id); // 404, ако устройството не съществува
-        int safeHours = Math.min(Math.max(hours, 1), 168); // от 1 час до 7 дни
+        int safeHours = Math.min(Math.max(hours, 1), 720); // от 1 час до 30 дни
         return deviceService.getMetrics(id, safeHours);
     }
 

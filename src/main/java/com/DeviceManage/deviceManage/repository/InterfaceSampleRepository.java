@@ -26,4 +26,9 @@ public interface InterfaceSampleRepository extends JpaRepository<InterfaceSample
     @Modifying
     @Query("delete from InterfaceSample s where s.device.id = :deviceId")
     void deleteAllByDeviceId(@Param("deviceId") Long deviceId);
+
+    // Изтрива подробните записи преди дадения момент (след агрегирането)
+    @Modifying
+    @Query("delete from InterfaceSample s where s.collectedAt < :before")
+    int deleteOlderThan(@Param("before") LocalDateTime before);
 }

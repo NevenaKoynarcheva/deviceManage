@@ -22,4 +22,9 @@ public interface MetricSampleRepository extends JpaRepository<MetricSample, Long
     @Modifying
     @Query("delete from MetricSample s where s.device.id = :deviceId")
     void deleteAllByDeviceId(@Param("deviceId") Long deviceId);
+
+    // Изтрива подробните записи преди дадения момент (след агрегирането)
+    @Modifying
+    @Query("delete from MetricSample s where s.collectedAt < :before")
+    int deleteOlderThan(@Param("before") LocalDateTime before);
 }

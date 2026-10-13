@@ -20,6 +20,7 @@
 </header>
 <main>
     <h2>Състояние на мрежата</h2>
+    <p class="flash" th:if="${message}" th:text="${message}"></p>
 
     <div class="stats">
         <a class="stat" th:href="@{/devices}"><span>Устройства</span><b th:text="${total}">0</b></a>
@@ -48,6 +49,14 @@
         </tr>
         </tbody>
     </table>
+    <div th:if="${isAdmin}" class="maintenance">
+        <h3>Поддръжка</h3>
+        <p>Подробните измервания по-стари от зададения брой дни се обобщават по часове всяка нощ.
+           Може да се пусне и ръчно:</p>
+        <form th:action="@{/maintenance/aggregate}" method="post">
+            <button type="submit" class="btn">Агрегирай старите данни сега</button>
+        </form>
+    </div>
 </main>
 </body>
 </html>
