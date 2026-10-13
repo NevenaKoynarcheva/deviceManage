@@ -17,6 +17,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
@@ -271,15 +272,8 @@ public class DeviceService {
             throw new IllegalArgumentException("Устройство с този IP адрес вече съществува");
         }
         Device d = new Device();
-        d.setName(form.getName().trim());
-        d.setIpAddress(form.getIpAddress().trim());
-        d.setType(form.getType());
-        d.setSnmpVersion(form.getSnmpVersion());
-        d.setSnmpPort(form.getSnmpPort());
-        d.setReadCommunity(form.getReadCommunity() == null || form.getReadCommunity().isBlank()
-                ? null : form.getReadCommunity());
-        d.setWriteCommunity(form.getWriteCommunity() == null || form.getWriteCommunity().isBlank()
-                ? null : form.getWriteCommunity());
+        applyForm(form, d);
+        d.setWriteCommunity(blankToNull(form.getWriteCommunity()));
         Device saved = deviceRepository.save(d);
 
         // Първа проверка веднага, за да не чакаме 30 секунди за статуса
@@ -289,5 +283,52 @@ public class DeviceService {
             log.warn("Първата проверка на {} неуспешна: {}", saved.getIpAddress(), e.getMessage());
         }
         return saved;
+    }
+
+    public Device updateDevice(Long id, DeviceForm form) {
+        Device d = findById(id);
+        String ip = form.getIpAddress().trim();
+        // IP адресът трябва да остане уникален (без да броим самото устройство)
+        deviceRepository.findByIpAddress(ip)
+                .filter(other -> !other.getId().equals(id))
+                .ifPresent(other -> {
+                    throw new IllegalArgumentException("Устройство с този IP адрес вече съществува");
+                });
+        applyForm(form, d);
+        // Празно поле = запазва се старата write community
+        if (form.getWriteCommunity() != null && !form.getWriteCommunity().isBlank()) {
+            d.setWriteCommunity(form.getWriteCommunity());
+        }
+        d.setVendor(null); // производителят ще се разпознае наново при следващата проверка
+        Device saved = deviceRepository.save(d);
+        try {
+            pollDevice(saved);
+        } catch (Exception e) {
+            log.warn("Проверката на {} след редакция неуспешна: {}", saved.getIpAddress(), e.getMessage());
+        }
+        return saved;
+    }
+
+    /** Изтрива устройството заедно с цялата му история. */
+    @Transactional
+    public void deleteDevice(Long id) {
+        Device d = findById(id);
+        interfaceSampleRepository.deleteAllByDeviceId(id);
+        metricSampleRepository.deleteAllByDeviceId(id);
+        deviceRepository.delete(d);
+        log.info("Изтрито устройство {} ({})", d.getName(), d.getIpAddress());
+    }
+
+    private void applyForm(DeviceForm form, Device d) {
+        d.setName(form.getName().trim());
+        d.setIpAddress(form.getIpAddress().trim());
+        d.setType(form.getType());
+        d.setSnmpVersion(form.getSnmpVersion());
+        d.setSnmpPort(form.getSnmpPort());
+        d.setReadCommunity(blankToNull(form.getReadCommunity()));
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

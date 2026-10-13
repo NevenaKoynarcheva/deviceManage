@@ -17,6 +17,16 @@
               th:text="${device.status}"></span>
     </div>
 
+    <p class="flash" th:if="${message}" th:text="${message}"></p>
+
+    <div class="actions">
+        <a class="btn" th:href="@{/devices/{id}/edit(id=${device.id})}">Редактирай</a>
+        <form th:action="@{/devices/{id}/delete(id=${device.id})}" method="post"
+              onsubmit="return confirm('Да се изтрие ли устройството заедно с цялата му история?');">
+            <button type="submit" class="btn danger">Изтрий</button>
+        </form>
+    </div>
+
     <div class="cards">
         <div class="card"><span>IP адрес</span><b th:text="${device.ipAddress}"></b></div>
         <div class="card"><span>Тип</span><b th:text="${device.type}"></b></div>

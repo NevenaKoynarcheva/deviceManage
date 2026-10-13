@@ -2,14 +2,15 @@
 <html lang="bg" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>Ново устройство</title>
+    <title th:text="${deviceId == null ? 'Ново устройство' : 'Редакция на устройство'}">Устройство</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
 <header><h1>Мониторинг на мрежата</h1></header>
 <main>
-    <h2>Ново устройство</h2>
-    <form th:action="@{/devices}" th:object="${deviceForm}" method="post" class="form">
+    <h2 th:text="${deviceId == null ? 'Ново устройство' : 'Редакция на устройство'}"></h2>
+    <form th:action="@{${deviceId == null ? '/devices' : '/devices/' + deviceId}}"
+          th:object="${deviceForm}" method="post" class="form">
 
         <label>Име
             <input type="text" th:field="*{name}">
@@ -38,18 +39,18 @@
         </label>
         <p class="error" th:if="${#fields.hasErrors('snmpPort')}" th:errors="*{snmpPort}"></p>
 
-        <label>Read community
+        <label>Read community (по избор, без нея само ping)
             <input type="text" th:field="*{readCommunity}">
         </label>
         <p class="error" th:if="${#fields.hasErrors('readCommunity')}" th:errors="*{readCommunity}"></p>
 
-        <label>Write community (по избор)
+        <label><span th:text="${deviceId == null ? 'Write community (по избор)' : 'Write community (празно = без промяна)'}"></span>
             <input type="password" th:field="*{writeCommunity}">
         </label>
 
         <div class="actions">
             <button type="submit" class="btn">Запази</button>
-            <a th:href="@{/devices}">Отказ</a>
+            <a th:href="@{${deviceId == null ? '/devices' : '/devices/' + deviceId}}">Отказ</a>
         </div>
     </form>
 </main>

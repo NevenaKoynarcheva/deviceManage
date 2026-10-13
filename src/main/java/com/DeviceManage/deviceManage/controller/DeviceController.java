@@ -30,6 +30,7 @@ public class DeviceController {
     @GetMapping("/new")
     public String newForm(Model model) {
         model.addAttribute("deviceForm", new DeviceForm());
+        model.addAttribute("deviceId", null);
         addOptions(model);
         return "device-form";
     }
@@ -46,6 +47,7 @@ public class DeviceController {
                 result.rejectValue("ipAddress", "duplicate", e.getMessage());
             }
         }
+        model.addAttribute("deviceId", null);
         addOptions(model);
         return "device-form";
     }
@@ -63,4 +65,36 @@ public class DeviceController {
         return "device-details";
     }
 
+    @GetMapping("/{id}/edit")
+    public String editForm(@PathVariable Long id, Model model) {
+        model.addAttribute("deviceForm", DeviceForm.from(deviceService.findById(id)));
+        model.addAttribute("deviceId", id);
+        addOptions(model);
+        return "device-form";
+    }
+
+    @PostMapping("/{id}")
+    public String update(@PathVariable Long id,
+                         @Valid @ModelAttribute("deviceForm") DeviceForm form,
+                         BindingResult result, Model model, RedirectAttributes ra) {
+        if (!result.hasErrors()) {
+            try {
+                deviceService.updateDevice(id, form);
+                ra.addFlashAttribute("message", "Промените са запазени");
+                return "redirect:/devices/" + id;
+            } catch (IllegalArgumentException e) {
+                result.rejectValue("ipAddress", "duplicate", e.getMessage());
+            }
+        }
+        model.addAttribute("deviceId", id);
+        addOptions(model);
+        return "device-form";
+    }
+
+    @PostMapping("/{id}/delete")
+    public String delete(@PathVariable Long id, RedirectAttributes ra) {
+        deviceService.deleteDevice(id);
+        ra.addFlashAttribute("message", "Устройството е изтрито");
+        return "redirect:/devices";
+    }
 }

@@ -1,5 +1,6 @@
 package com.DeviceManage.deviceManage.dto;
 
+import com.DeviceManage.deviceManage.model.Device;
 import com.DeviceManage.deviceManage.model.DeviceType;
 import com.DeviceManage.deviceManage.model.SnmpVersion;
 import jakarta.validation.constraints.*;
@@ -27,6 +28,18 @@ public class DeviceForm {
     private String readCommunity;
 
     private String writeCommunity;
+
+    /** Попълва формата от съществуващо устройство (за редакция). Write community не се показва. */
+    public static DeviceForm from(Device d) {
+        DeviceForm f = new DeviceForm();
+        f.setName(d.getName());
+        f.setIpAddress(d.getIpAddress());
+        f.setType(d.getType());
+        f.setSnmpVersion(d.getSnmpVersion());
+        f.setSnmpPort(d.getSnmpPort());
+        f.setReadCommunity(d.getReadCommunity());
+        return f;
+    }
 
     public String getName() {
         return name;

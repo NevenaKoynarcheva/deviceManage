@@ -2,6 +2,9 @@ package com.DeviceManage.deviceManage.repository;
 
 import com.DeviceManage.deviceManage.model.MetricSample;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -14,5 +17,9 @@ public interface MetricSampleRepository extends JpaRepository<MetricSample, Long
 
     // Последното измерване за началния екран
     Optional<MetricSample> findTopByDeviceIdOrderByCollectedAtDesc(Long deviceId);
-}
 
+    // Изтрива цялата история на устройството с една заявка (при изтриване на устройство)
+    @Modifying
+    @Query("delete from MetricSample s where s.device.id = :deviceId")
+    void deleteAllByDeviceId(@Param("deviceId") Long deviceId);
+}
