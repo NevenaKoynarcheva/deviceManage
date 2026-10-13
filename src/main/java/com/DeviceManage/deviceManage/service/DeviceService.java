@@ -2,12 +2,16 @@ package com.DeviceManage.deviceManage.service;
 
 import com.DeviceManage.deviceManage.dto.DeviceForm;
 import com.DeviceManage.deviceManage.dto.MetricPoint;
+import com.DeviceManage.deviceManage.dto.TrafficPoint;
 import com.DeviceManage.deviceManage.model.*;
 import com.DeviceManage.deviceManage.repository.*;
 import com.DeviceManage.deviceManage.snmp.PingClient;
 import com.DeviceManage.deviceManage.snmp.SnmpClient;
+import com.DeviceManage.deviceManage.snmp.profile.VendorProfile;
+import com.DeviceManage.deviceManage.snmp.profile.VendorProfileResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.snmp4j.smi.OctetString;
 import org.snmp4j.smi.Variable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -16,30 +20,46 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class DeviceService {
 
     private static final Logger log = LoggerFactory.getLogger(DeviceService.class);
     private static final String OID_SYS_UPTIME = "1.3.6.1.2.1.1.3.0";
+    private static final String OID_SYS_OBJECT_ID = "1.3.6.1.2.1.1.2.0";
+
+    // IF-MIB: интерфейси и броячи на трафика
+    private static final String OID_IF_DESCR = "1.3.6.1.2.1.2.2.1.2";
+    private static final String OID_IF_OPER_STATUS = "1.3.6.1.2.1.2.2.1.8";
+    private static final String OID_IF_HC_IN_OCTETS = "1.3.6.1.2.1.31.1.1.1.6";   // 64-битови броячи
+    private static final String OID_IF_HC_OUT_OCTETS = "1.3.6.1.2.1.31.1.1.1.10";
+    private static final String OID_IF_IN_OCTETS = "1.3.6.1.2.1.2.2.1.10";        // 32-битови (резервен вариант)
+    private static final String OID_IF_OUT_OCTETS = "1.3.6.1.2.1.2.2.1.16";
 
     private final DeviceRepository deviceRepository;
     private final MetricSampleRepository metricSampleRepository;
+    private final InterfaceSampleRepository interfaceSampleRepository;
     private final SnmpClient snmpClient;
 
     private final PingClient pingClient;
+    private final VendorProfileResolver vendorProfiles;
 
     public DeviceService(DeviceRepository deviceRepository,
                          MetricSampleRepository metricSampleRepository,
+                         InterfaceSampleRepository interfaceSampleRepository,
                          SnmpClient snmpClient,
-                         PingClient pingClient) {
+                         PingClient pingClient,
+                         VendorProfileResolver vendorProfiles) {
         this.deviceRepository = deviceRepository;
         this.metricSampleRepository = metricSampleRepository;
+        this.interfaceSampleRepository = interfaceSampleRepository;
         this.snmpClient = snmpClient;
         this.pingClient = pingClient;
+        this.vendorProfiles = vendorProfiles;
     }
 
 
@@ -93,6 +113,20 @@ public class DeviceService {
             }
         }
 
+        // 3) CPU и памет - според профила на производителя
+        if (snmpOk) {
+            collectResources(device, sample);
+        }
+
+        // 4) Интерфейси и трафик
+        if (snmpOk) {
+            try {
+                collectInterfaces(device, sample.getCollectedAt());
+            } catch (Exception e) {
+                log.warn("{}: интерфейсите не са прочетени: {}", device.getName(), e.getMessage());
+            }
+        }
+
         boolean up = ping.received() > 0 || snmpOk;
         sample.setReachable(up);
         device.setStatus(up ? DeviceStatus.UP : DeviceStatus.DOWN);
@@ -102,9 +136,130 @@ public class DeviceService {
 
         metricSampleRepository.save(sample);
         deviceRepository.save(device);
-        log.info("{} ({}) -> {} | ping {} ms, загуба {}% | SNMP {}",
+        log.info("{} ({}) -> {} | ping {} ms, загуба {}% | SNMP {} | CPU {}%, памет {}%",
                 device.getName(), device.getIpAddress(), device.getStatus(),
-                ping.avgLatencyMs(), ping.packetLossPercent(), snmpOk ? "OK" : "-");
+                ping.avgLatencyMs(), ping.packetLossPercent(), snmpOk ? "OK" : "-",
+                sample.getCpuLoad(), sample.getMemoryUsage());
+    }
+
+    /** Интерфейсите от последната проверка: първо активните, после по номер. */
+    public List<InterfaceSample> findLatestInterfaces(Long deviceId) {
+        return interfaceSampleRepository.findTopByDeviceIdOrderByCollectedAtDesc(deviceId)
+                .map(last -> interfaceSampleRepository.findByDeviceIdAndCollectedAt(deviceId, last.getCollectedAt()))
+                .orElse(List.of())
+                .stream()
+                .sorted(Comparator.comparing(InterfaceSample::isOperUp).reversed()
+                        .thenComparingInt(InterfaceSample::getIfIndex))
+                .toList();
+    }
+
+    public List<TrafficPoint> getTraffic(Long deviceId, int ifIndex, int hours) {
+        LocalDateTime to = LocalDateTime.now();
+        return interfaceSampleRepository
+                .findByDeviceIdAndIfIndexAndCollectedAtBetweenOrderByCollectedAtAsc(deviceId, ifIndex, to.minusHours(hours), to)
+                .stream().map(TrafficPoint::from).toList();
+    }
+
+    /**
+     * Чете всички интерфейси на устройството (IF-MIB) и записва по един ред за всеки.
+     * SNMP дава само броячи на байтовете, затова скоростта се смята като
+     * разлика с предишното измерване: (байтове сега - байтове преди) * 8 / секунди.
+     */
+    private void collectInterfaces(Device device, LocalDateTime now) throws IOException {
+        String ip = device.getIpAddress();
+        int port = device.getSnmpPort();
+        String community = device.getReadCommunity();
+
+        Map<String, Variable> statuses = snmpClient.walk(ip, port, community, OID_IF_OPER_STATUS);
+        if (statuses.isEmpty()) {
+            return; // устройството не дава информация за интерфейси
+        }
+        Map<String, Variable> names = snmpClient.walk(ip, port, community, OID_IF_DESCR);
+        Map<String, Variable> in = snmpClient.walk(ip, port, community, OID_IF_HC_IN_OCTETS);
+        Map<String, Variable> out = snmpClient.walk(ip, port, community, OID_IF_HC_OUT_OCTETS);
+        if (in.isEmpty()) {
+            in = snmpClient.walk(ip, port, community, OID_IF_IN_OCTETS);
+            out = snmpClient.walk(ip, port, community, OID_IF_OUT_OCTETS);
+        }
+
+        // Предишните стойности по номер на интерфейс
+        Map<Integer, InterfaceSample> previous = new HashMap<>();
+        for (InterfaceSample p : findLatestInterfaces(device.getId())) {
+            previous.put(p.getIfIndex(), p);
+        }
+
+        List<InterfaceSample> samples = new ArrayList<>();
+        for (Map.Entry<String, Variable> entry : statuses.entrySet()) {
+            String key = entry.getKey();
+            InterfaceSample s = new InterfaceSample();
+            s.setDevice(device);
+            s.setCollectedAt(now);
+            s.setIfIndex(Integer.parseInt(key));
+            s.setName(cleanName(names.get(key), key));
+            s.setOperUp(entry.getValue().toInt() == 1); // 1 = up, 2 = down
+            s.setInOctets(in.containsKey(key) ? in.get(key).toLong() : null);
+            s.setOutOctets(out.containsKey(key) ? out.get(key).toLong() : null);
+
+            InterfaceSample prev = previous.get(s.getIfIndex());
+            if (prev != null) {
+                double seconds = Duration.between(prev.getCollectedAt(), now).toMillis() / 1000.0;
+                s.setInBps(rate(prev.getInOctets(), s.getInOctets(), seconds));
+                s.setOutBps(rate(prev.getOutOctets(), s.getOutOctets(), seconds));
+            }
+            samples.add(s);
+        }
+        interfaceSampleRepository.saveAll(samples);
+    }
+
+    private static Double rate(Long before, Long now, double seconds) {
+        if (before == null || now == null || seconds <= 0 || now < before) {
+            return null; // няма предишна стойност или броячът е нулиран
+        }
+        return Math.round((now - before) * 8 / seconds * 10) / 10.0;
+    }
+
+    /** Някои устройства връщат името с нулеви байтове накрая - чистим ги. */
+    private static String cleanName(Variable v, String ifIndex) {
+        if (v == null) {
+            return "Интерфейс " + ifIndex;
+        }
+        String text = v instanceof OctetString os
+                ? new String(os.getValue(), StandardCharsets.UTF_8)
+                : v.toString();
+        text = text.replace("\0", "").trim();
+        return text.isEmpty() ? "Интерфейс " + ifIndex : text;
+    }
+
+    /**
+     * Чете CPU и памет чрез профила на производителя.
+     * При първата успешна SNMP проверка производителят се разпознава автоматично
+     * по sysObjectID и се записва в устройството, за да не се пита всеки път.
+     */
+    private void collectResources(Device device, MetricSample sample) {
+        try {
+            if (device.getVendor() == null || device.getVendor().isBlank()) {
+                String sysObjectId = snmpClient.get(device.getIpAddress(), device.getSnmpPort(),
+                        device.getReadCommunity(), OID_SYS_OBJECT_ID);
+                VendorProfile detected = vendorProfiles.detect(sysObjectId);
+                device.setVendor(detected.name());
+                log.info("{}: sysObjectID {} -> профил {}", device.getName(), sysObjectId, detected.name());
+            }
+        } catch (Exception e) {
+            log.warn("{}: неуспешно разпознаване на производителя: {}", device.getName(), e.getMessage());
+        }
+
+        VendorProfile profile = vendorProfiles.byName(device.getVendor());
+        // CPU и паметта се четат поотделно - ако едното липсва, другото пак се записва
+        try {
+            sample.setCpuLoad(profile.readCpuLoad(snmpClient, device));
+        } catch (Exception e) {
+            log.debug("{}: CPU не е прочетен: {}", device.getName(), e.getMessage());
+        }
+        try {
+            sample.setMemoryUsage(profile.readMemoryUsage(snmpClient, device));
+        } catch (Exception e) {
+            log.debug("{}: паметта не е прочетена: {}", device.getName(), e.getMessage());
+        }
     }
 
     public List<Device> findAll() {

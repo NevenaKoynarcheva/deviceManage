@@ -59,6 +59,7 @@ public class DeviceController {
     public String details(@PathVariable Long id, Model model) {
         model.addAttribute("device", deviceService.findById(id));
         model.addAttribute("latest", deviceService.findLatestSample(id).orElse(null));
+        model.addAttribute("interfaces", deviceService.findLatestInterfaces(id));
         return "device-details";
     }
 

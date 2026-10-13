@@ -1,6 +1,7 @@
 package com.DeviceManage.deviceManage.controller;
 
 import com.DeviceManage.deviceManage.dto.MetricPoint;
+import com.DeviceManage.deviceManage.dto.TrafficPoint;
 import com.DeviceManage.deviceManage.service.DeviceService;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -21,5 +22,13 @@ public class DeviceApiController {
         deviceService.findById(id); // 404, ако устройството не съществува
         int safeHours = Math.min(Math.max(hours, 1), 168); // от 1 час до 7 дни
         return deviceService.getMetrics(id, safeHours);
+    }
+
+    @GetMapping("/{id}/interfaces/{ifIndex}/traffic")
+    public List<TrafficPoint> traffic(@PathVariable Long id, @PathVariable int ifIndex,
+                                      @RequestParam(defaultValue = "1") int hours) {
+        deviceService.findById(id);
+        int safeHours = Math.min(Math.max(hours, 1), 168);
+        return deviceService.getTraffic(id, ifIndex, safeHours);
     }
 }

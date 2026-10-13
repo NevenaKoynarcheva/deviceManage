@@ -20,12 +20,17 @@
     <div class="cards">
         <div class="card"><span>IP адрес</span><b th:text="${device.ipAddress}"></b></div>
         <div class="card"><span>Тип</span><b th:text="${device.type}"></b></div>
+        <div class="card"><span>Производител</span><b th:text="${device.vendor != null ? device.vendor : '—'}"></b></div>
         <div class="card"><span>Последно видяно</span>
             <b th:text="${device.lastSeen != null ? #temporals.format(device.lastSeen, 'dd.MM.yyyy HH:mm:ss') : '—'}"></b></div>
         <div class="card"><span>Ping</span>
             <b th:text="${latest != null and latest.pingLatencyMs != null ? #numbers.formatDecimal(latest.pingLatencyMs, 1, 1) + ' ms' : '—'}"></b></div>
         <div class="card"><span>Загуба на пакети</span>
             <b th:text="${latest != null and latest.packetLossPercent != null ? #numbers.formatDecimal(latest.packetLossPercent, 1, 0) + ' %' : '—'}"></b></div>
+        <div class="card"><span>CPU</span>
+            <b th:text="${latest != null and latest.cpuLoad != null ? #numbers.formatDecimal(latest.cpuLoad, 1, 1) + ' %' : '—'}"></b></div>
+        <div class="card"><span>Памет</span>
+            <b th:text="${latest != null and latest.memoryUsage != null ? #numbers.formatDecimal(latest.memoryUsage, 1, 1) + ' %' : '—'}"></b></div>
         <div class="card"><span>Uptime</span>
             <b th:text="${latest != null and latest.uptimeSeconds != null
                 ? (latest.uptimeSeconds / 86400) + ' д ' + ((latest.uptimeSeconds % 86400) / 3600) + ' ч ' + ((latest.uptimeSeconds % 3600) / 60) + ' мин'
@@ -39,16 +44,47 @@
     </div>
     <p id="empty" hidden>Няма данни за избрания период.</p>
 
+    <h3>CPU и памет</h3>
+    <div class="chart-box"><canvas id="resourceChart"></canvas></div>
+
     <h3>Закъснение</h3>
     <div class="chart-box"><canvas id="latencyChart"></canvas></div>
 
     <h3>Загуба на пакети</h3>
     <div class="chart-box"><canvas id="lossChart"></canvas></div>
+
+    <h3>Интерфейси</h3>
+    <p th:if="${interfaces.isEmpty()}">Няма данни за интерфейси (устройството няма SNMP или още не е проверено).</p>
+    <table th:unless="${interfaces.isEmpty()}">
+        <thead>
+        <tr><th>Статус</th><th>#</th><th>Интерфейс</th><th>Входящ</th><th>Изходящ</th></tr>
+        </thead>
+        <tbody>
+        <tr th:each="i : ${interfaces}">
+            <td><span class="badge" th:classappend="${i.operUp ? 'up' : 'down'}"
+                      th:text="${i.operUp ? 'UP' : 'DOWN'}"></span></td>
+            <td th:text="${i.ifIndex}"></td>
+            <td th:text="${i.name}"></td>
+            <td th:text="${i.inBps != null ? #numbers.formatDecimal(i.inBps / 1000, 1, 1) + ' kbit/s' : '—'}"></td>
+            <td th:text="${i.outBps != null ? #numbers.formatDecimal(i.outBps / 1000, 1, 1) + ' kbit/s' : '—'}"></td>
+        </tr>
+        </tbody>
+    </table>
+
+    <div th:unless="${interfaces.isEmpty()}">
+        <h3>Трафик</h3>
+        <select id="ifSelect">
+            <option th:each="i : ${interfaces}" th:value="${i.ifIndex}"
+                    th:text="${i.name + (i.operUp ? '' : ' (DOWN)')}"></option>
+        </select>
+        <div class="chart-box"><canvas id="trafficChart"></canvas></div>
+    </div>
 </main>
 
 <script th:inline="javascript">
     const deviceId = /*[[${device.id}]]*/ 0;
-    let latencyChart, lossChart;
+    let resourceChart, latencyChart, lossChart, trafficChart;
+    let currentHours = 1;
 
     function fmt(t) {
         return new Date(t).toLocaleString('bg-BG',
@@ -56,6 +92,8 @@
     }
 
     async function load(hours) {
+        currentHours = hours;
+        loadTraffic();
         const res = await fetch(`/api/devices/${deviceId}/metrics?hours=${hours}`);
         const data = await res.json();
         const labels = data.map(p => fmt(p.time));
@@ -64,8 +102,24 @@
             .forEach(b => b.classList.toggle('active', b.dataset.hours == hours));
         document.getElementById('empty').hidden = data.length > 0;
 
+        if (resourceChart) resourceChart.destroy();
         if (latencyChart) latencyChart.destroy();
         if (lossChart) lossChart.destroy();
+
+        resourceChart = new Chart(document.getElementById('resourceChart'), {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    { label: 'CPU (%)', data: data.map(p => p.cpuLoad),
+                        borderColor: '#bf8700', pointRadius: 0 },
+                    { label: 'Памет (%)', data: data.map(p => p.memoryUsage),
+                        borderColor: '#8250df', pointRadius: 0 }
+                ]
+            },
+            options: { animation: false, maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, max: 100, title: { display: true, text: '%' } } } }
+        });
 
         latencyChart = new Chart(document.getElementById('latencyChart'), {
             type: 'line',
@@ -95,6 +149,31 @@
                 scales: { y: { beginAtZero: true, max: 100 } } }
         });
     }
+
+    async function loadTraffic() {
+        const select = document.getElementById('ifSelect');
+        if (!select) return;
+        const res = await fetch(`/api/devices/${deviceId}/interfaces/${select.value}/traffic?hours=${currentHours}`);
+        const data = await res.json();
+        if (trafficChart) trafficChart.destroy();
+        trafficChart = new Chart(document.getElementById('trafficChart'), {
+            type: 'line',
+            data: {
+                labels: data.map(p => fmt(p.time)),
+                datasets: [
+                    { label: 'Входящ (kbit/s)', data: data.map(p => p.inBps != null ? p.inBps / 1000 : null),
+                        borderColor: '#1f6feb', pointRadius: 0 },
+                    { label: 'Изходящ (kbit/s)', data: data.map(p => p.outBps != null ? p.outBps / 1000 : null),
+                        borderColor: '#2da44e', pointRadius: 0 }
+                ]
+            },
+            options: { animation: false, maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'kbit/s' } } } }
+        });
+    }
+
+    const ifSelect = document.getElementById('ifSelect');
+    if (ifSelect) ifSelect.addEventListener('change', loadTraffic);
 
     document.querySelectorAll('.period button')
         .forEach(b => b.addEventListener('click', () => load(b.dataset.hours)));
