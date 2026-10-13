@@ -98,6 +98,25 @@ public class SnmpClient {
         return result;
     }
 
+    /**
+     * SetRequest - записва нова стойност в устройството.
+     * Хвърля IOException, ако няма отговор или устройството откаже промяната.
+     */
+    public void set(String ip, int port, String writeCommunity, String oid, Variable value) throws IOException {
+        PDU pdu = new PDU();
+        pdu.setType(PDU.SET);
+        pdu.add(new VariableBinding(new OID(oid), value));
+
+        ResponseEvent<Address> event = snmp.set(pdu, target(ip, port, writeCommunity));
+        PDU response = event.getResponse();
+        if (response == null) {
+            throw new IOException("няма отговор (грешна write community или устройството не е достъпно)");
+        }
+        if (response.getErrorStatus() != PDU.noError) {
+            throw new IOException("устройството отказа промяната: " + response.getErrorStatusText());
+        }
+    }
+
     @PreDestroy
     public void close() throws IOException {
         snmp.close();

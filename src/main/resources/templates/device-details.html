@@ -24,6 +24,7 @@
 
     <div class="actions">
         <a class="btn" th:href="@{/devices/{id}/edit(id=${device.id})}">Редактирай</a>
+        <a class="btn" th:href="@{/devices/{id}/manage(id=${device.id})}">Управление</a>
         <form th:action="@{/devices/{id}/delete(id=${device.id})}" method="post"
               onsubmit="return confirm('Да се изтрие ли устройството заедно с цялата му история?');">
             <button type="submit" class="btn danger">Изтрий</button>

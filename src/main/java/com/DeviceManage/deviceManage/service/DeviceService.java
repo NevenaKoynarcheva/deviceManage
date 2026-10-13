@@ -44,6 +44,7 @@ public class DeviceService {
     private final DeviceRepository deviceRepository;
     private final MetricSampleRepository metricSampleRepository;
     private final InterfaceSampleRepository interfaceSampleRepository;
+    private final ChangeLogRepository changeLogRepository;
     private final SnmpClient snmpClient;
 
     private final PingClient pingClient;
@@ -52,12 +53,14 @@ public class DeviceService {
     public DeviceService(DeviceRepository deviceRepository,
                          MetricSampleRepository metricSampleRepository,
                          InterfaceSampleRepository interfaceSampleRepository,
+                         ChangeLogRepository changeLogRepository,
                          SnmpClient snmpClient,
                          PingClient pingClient,
                          VendorProfileResolver vendorProfiles) {
         this.deviceRepository = deviceRepository;
         this.metricSampleRepository = metricSampleRepository;
         this.interfaceSampleRepository = interfaceSampleRepository;
+        this.changeLogRepository = changeLogRepository;
         this.snmpClient = snmpClient;
         this.pingClient = pingClient;
         this.vendorProfiles = vendorProfiles;
@@ -313,6 +316,7 @@ public class DeviceService {
     @Transactional
     public void deleteDevice(Long id) {
         Device d = findById(id);
+        changeLogRepository.deleteAllByDeviceId(id);
         interfaceSampleRepository.deleteAllByDeviceId(id);
         metricSampleRepository.deleteAllByDeviceId(id);
         deviceRepository.delete(d);
