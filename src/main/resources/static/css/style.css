@@ -44,3 +44,9 @@ header nav a:hover { text-decoration: underline; }
 form.inline { display: inline-flex; gap: 6px; align-items: center; margin: 2px 4px 2px 0; }
 form.inline input[type=text] { padding: 5px; min-width: 180px; }
 .error-box { background: #ffebe9; color: #82071e; }
+header nav { align-items: center; }
+header nav .user { color: #c9d4e3; font-size: 13px; }
+header nav form.inline { margin: 0; }
+.link-btn { background: none; border: none; color: #fff; cursor: pointer; font-size: 15px; padding: 0; }
+.link-btn:hover { text-decoration: underline; }
+.form.login { margin: 40px auto; }

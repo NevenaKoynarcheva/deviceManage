@@ -9,12 +9,19 @@
 <body>
 <header>
     <h1>Мониторинг на мрежата</h1>
-    <nav><a th:href="@{/}">Начало</a><a th:href="@{/devices}">Устройства</a></nav>
+    <nav>
+        <a th:href="@{/}">Начало</a>
+        <a th:href="@{/devices}">Устройства</a>
+        <span class="user" th:if="${currentUser}" th:text="${currentUser + (isAdmin ? ' (администратор)' : ' (наблюдател)')}"></span>
+        <form th:if="${currentUser}" th:action="@{/logout}" method="post" class="inline">
+            <button type="submit" class="link-btn">Изход</button>
+        </form>
+    </nav>
 </header>
 <main>
     <div class="toolbar">
         <h2>Устройства</h2>
-        <a class="btn" th:href="@{/devices/new}">+ Добави устройство</a>
+        <a class="btn" th:if="${isAdmin}" th:href="@{/devices/new}">+ Добави устройство</a>
     </div>
 
     <p class="flash" th:if="${message}" th:text="${message}"></p>
