@@ -27,7 +27,7 @@
         <tr th:each="d : ${devices}">
             <td><span class="badge" th:classappend="${#strings.toLowerCase(d.status)}"
                       th:text="${d.status}"></span></td>
-            <td th:text="${d.name}"></td>
+            <td><a th:href="@{/devices/{id}(id=${d.id})}" th:text="${d.name}"></a></td>
             <td th:text="${d.ipAddress}"></td>
             <td th:text="${d.type}"></td>
             <td th:text="${d.snmpVersion}"></td>

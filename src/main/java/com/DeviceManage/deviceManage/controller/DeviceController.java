@@ -54,4 +54,12 @@ public class DeviceController {
         model.addAttribute("types", DeviceType.values());
         model.addAttribute("versions", SnmpVersion.values());
     }
+
+    @GetMapping("/{id}")
+    public String details(@PathVariable Long id, Model model) {
+        model.addAttribute("device", deviceService.findById(id));
+        model.addAttribute("latest", deviceService.findLatestSample(id).orElse(null));
+        return "device-details";
+    }
+
 }

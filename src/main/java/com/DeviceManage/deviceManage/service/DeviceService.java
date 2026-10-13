@@ -1,19 +1,24 @@
 package com.DeviceManage.deviceManage.service;
 
 import com.DeviceManage.deviceManage.dto.DeviceForm;
+import com.DeviceManage.deviceManage.dto.MetricPoint;
 import com.DeviceManage.deviceManage.model.*;
 import com.DeviceManage.deviceManage.repository.*;
+import com.DeviceManage.deviceManage.snmp.PingClient;
 import com.DeviceManage.deviceManage.snmp.SnmpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.snmp4j.smi.Variable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class DeviceService {
@@ -25,13 +30,18 @@ public class DeviceService {
     private final MetricSampleRepository metricSampleRepository;
     private final SnmpClient snmpClient;
 
+    private final PingClient pingClient;
+
     public DeviceService(DeviceRepository deviceRepository,
                          MetricSampleRepository metricSampleRepository,
-                         SnmpClient snmpClient) {
+                         SnmpClient snmpClient,
+                         PingClient pingClient) {
         this.deviceRepository = deviceRepository;
         this.metricSampleRepository = metricSampleRepository;
         this.snmpClient = snmpClient;
+        this.pingClient = pingClient;
     }
+
 
     @Scheduled(fixedDelayString = "${nms.polling.interval-ms:30000}")
     public void pollAllDevices() {
@@ -44,32 +54,57 @@ public class DeviceService {
             }
         }
     }
+    public Device findById(Long id) {
+        return deviceRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Устройството не е намерено"));
+    }
 
+    public Optional<MetricSample> findLatestSample(Long deviceId) {
+        return metricSampleRepository.findTopByDeviceIdOrderByCollectedAtDesc(deviceId);
+    }
+
+    public List<MetricPoint> getMetrics(Long deviceId, int hours) {
+        LocalDateTime to = LocalDateTime.now();
+        LocalDateTime from = to.minusHours(hours);
+        return metricSampleRepository
+                .findByDeviceIdAndCollectedAtBetweenOrderByCollectedAtAsc(deviceId, from, to)
+                .stream().map(MetricPoint::from).toList();
+    }
     public void pollDevice(Device device) throws IOException {
         MetricSample sample = new MetricSample();
         sample.setDevice(device);
         sample.setCollectedAt(LocalDateTime.now());
 
-        long start = System.currentTimeMillis();
-        Variable uptime = snmpClient.getVariable(device.getIpAddress(), device.getSnmpPort(),
-                device.getReadCommunity(), OID_SYS_UPTIME);
-        long elapsed = System.currentTimeMillis() - start;
+        // 1) ICMP ping - работи за всяко устройство
+        PingClient.PingResult ping = pingClient.ping(device.getIpAddress(), 4, 1000);
+        sample.setPingLatencyMs(ping.avgLatencyMs());
+        sample.setPacketLossPercent(ping.packetLossPercent());
 
-        if (uptime != null) {
-            sample.setReachable(true);
-            sample.setResponseTimeMs(elapsed);
-            sample.setUptimeSeconds(uptime.toLong() / 100); // TimeTicks са в стотни от секундата
-            device.setStatus(DeviceStatus.UP);
+        // 2) SNMP - само ако устройството има read community
+        boolean snmpOk = false;
+        if (device.getReadCommunity() != null && !device.getReadCommunity().isBlank()) {
+            long start = System.currentTimeMillis();
+            Variable uptime = snmpClient.getVariable(device.getIpAddress(), device.getSnmpPort(),
+                    device.getReadCommunity(), OID_SYS_UPTIME);
+            if (uptime != null) {
+                snmpOk = true;
+                sample.setResponseTimeMs(System.currentTimeMillis() - start);
+                sample.setUptimeSeconds(uptime.toLong() / 100);
+            }
+        }
+
+        boolean up = ping.received() > 0 || snmpOk;
+        sample.setReachable(up);
+        device.setStatus(up ? DeviceStatus.UP : DeviceStatus.DOWN);
+        if (up) {
             device.setLastSeen(sample.getCollectedAt());
-        } else {
-            sample.setReachable(false);
-            device.setStatus(DeviceStatus.DOWN);
         }
 
         metricSampleRepository.save(sample);
         deviceRepository.save(device);
-        log.info("{} ({}) -> {} за {} ms", device.getName(), device.getIpAddress(),
-                device.getStatus(), sample.getResponseTimeMs());
+        log.info("{} ({}) -> {} | ping {} ms, загуба {}% | SNMP {}",
+                device.getName(), device.getIpAddress(), device.getStatus(),
+                ping.avgLatencyMs(), ping.packetLossPercent(), snmpOk ? "OK" : "-");
     }
 
     public List<Device> findAll() {
@@ -86,7 +121,8 @@ public class DeviceService {
         d.setType(form.getType());
         d.setSnmpVersion(form.getSnmpVersion());
         d.setSnmpPort(form.getSnmpPort());
-        d.setReadCommunity(form.getReadCommunity());
+        d.setReadCommunity(form.getReadCommunity() == null || form.getReadCommunity().isBlank()
+                ? null : form.getReadCommunity());
         d.setWriteCommunity(form.getWriteCommunity() == null || form.getWriteCommunity().isBlank()
                 ? null : form.getWriteCommunity());
         Device saved = deviceRepository.save(d);

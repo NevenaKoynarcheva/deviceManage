@@ -24,7 +24,6 @@ public class DeviceForm {
     @Max(value = 65535, message = "Портът трябва да е между 1 и 65535")
     private int snmpPort = 161;
 
-    @NotBlank(message = "Въведете read community")
     private String readCommunity;
 
     private String writeCommunity;

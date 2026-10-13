@@ -19,11 +19,13 @@ public class MetricSample {
     @Column(nullable = false)
     private LocalDateTime collectedAt;
 
-    private boolean reachable;      // отговорило ли е устройството
-    private Long responseTimeMs;    // за колко време е отговорило
-    private Long uptimeSeconds;     // от sysUpTime
-    private Double cpuLoad;         // %, ако профилът на производителя го поддържа
-    private Double memoryUsage;     // %, ако профилът го поддържа
+    private boolean reachable;          // отговорило ли е устройството
+    private Long responseTimeMs;        // за колко време е отговорил SNMP агентът
+    private Long uptimeSeconds;         // от sysUpTime
+    private Double cpuLoad;             // %, ако профилът на производителя го поддържа
+    private Double memoryUsage;         // %, ако профилът го поддържа
+    private Double pingLatencyMs;       // средно закъснение (ICMP ping)
+    private Double packetLossPercent;   // загуба на пакети в %
 
     public Long getId() {
         return id;
@@ -87,5 +89,21 @@ public class MetricSample {
 
     public void setMemoryUsage(Double memoryUsage) {
         this.memoryUsage = memoryUsage;
+    }
+
+    public Double getPingLatencyMs() {
+        return pingLatencyMs;
+    }
+
+    public void setPingLatencyMs(Double pingLatencyMs) {
+        this.pingLatencyMs = pingLatencyMs;
+    }
+
+    public Double getPacketLossPercent() {
+        return packetLossPercent;
+    }
+
+    public void setPacketLossPercent(Double packetLossPercent) {
+        this.packetLossPercent = packetLossPercent;
     }
 }
