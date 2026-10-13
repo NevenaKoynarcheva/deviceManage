@@ -6,7 +6,10 @@
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 <body>
-<header><h1>Мониторинг на мрежата</h1></header>
+<header>
+    <h1>Мониторинг на мрежата</h1>
+    <nav><a th:href="@{/}">Начало</a><a th:href="@{/devices}">Устройства</a></nav>
+</header>
 <main>
     <h2 th:text="${deviceId == null ? 'Ново устройство' : 'Редакция на устройство'}"></h2>
     <form th:action="@{${deviceId == null ? '/devices' : '/devices/' + deviceId}}"

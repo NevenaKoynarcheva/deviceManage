@@ -7,7 +7,10 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 </head>
 <body>
-<header><h1>Мониторинг на мрежата</h1></header>
+<header>
+    <h1>Мониторинг на мрежата</h1>
+    <nav><a th:href="@{/}">Начало</a><a th:href="@{/devices}">Устройства</a></nav>
+</header>
 <main>
     <a th:href="@{/devices}">← Всички устройства</a>
 
