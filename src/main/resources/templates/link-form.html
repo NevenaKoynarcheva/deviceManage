@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="bg" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Нова връзка</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<header>
+    <h1>Мониторинг на мрежата</h1>
+    <nav>
+        <a th:href="@{/}">Начало</a>
+        <a th:href="@{/devices}">Устройства</a>
+        <a th:href="@{/links}">Връзки</a>
+        <span class="user" th:if="${currentUser}" th:text="${currentUser + (isAdmin ? ' (администратор)' : ' (наблюдател)')}"></span>
+        <form th:if="${currentUser}" th:action="@{/logout}" method="post" class="inline">
+            <button type="submit" class="link-btn">Изход</button>
+        </form>
+    </nav>
+</header>
+<main>
+    <h2>Нова връзка</h2>
+    <form th:action="@{/links}" th:object="${linkForm}" method="post" class="form">
+
+        <label>Устройство A
+            <select th:field="*{deviceAId}">
+                <option value="">— изберете —</option>
+                <option th:each="d : ${devices}" th:value="${d.id}" th:text="${d.name + ' (' + d.ipAddress + ')'}"></option>
+            </select>
+        </label>
+        <p class="error" th:if="${#fields.hasErrors('deviceAId')}" th:errors="*{deviceAId}"></p>
+
+        <label>Интерфейс на A (номер, по избор)
+            <input type="number" min="1" th:field="*{ifIndexA}" placeholder="напр. 1">
+        </label>
+        <p class="error" th:if="${#fields.hasErrors('ifIndexA')}" th:errors="*{ifIndexA}"></p>
+
+        <label>Устройство B
+            <select th:field="*{deviceBId}">
+                <option value="">— изберете —</option>
+                <option th:each="d : ${devices}" th:value="${d.id}" th:text="${d.name + ' (' + d.ipAddress + ')'}"></option>
+            </select>
+        </label>
+        <p class="error" th:if="${#fields.hasErrors('deviceBId')}" th:errors="*{deviceBId}"></p>
+
+        <label>Интерфейс на B (номер, по избор)
+            <input type="number" min="1" th:field="*{ifIndexB}" placeholder="напр. 2">
+        </label>
+        <p class="error" th:if="${#fields.hasErrors('ifIndexB')}" th:errors="*{ifIndexB}"></p>
+
+        <label>Капацитет в Mbit/s (по избор, за % натоварване)
+            <input type="number" step="any" min="0" th:field="*{capacityMbps}" placeholder="напр. 100">
+        </label>
+        <p class="error" th:if="${#fields.hasErrors('capacityMbps')}" th:errors="*{capacityMbps}"></p>
+
+        <label>Описание (по избор)
+            <input type="text" maxlength="255" th:field="*{description}" placeholder="напр. Uplink към доставчика">
+        </label>
+
+        <p class="hint">Номерата на интерфейсите се виждат в колоната „#“ на страницата на устройството.</p>
+
+        <div class="actions">
+            <button type="submit" class="btn">Запази</button>
+            <a th:href="@{/links}">Отказ</a>
+        </div>
+    </form>
+</main>
+</body>
+</html>

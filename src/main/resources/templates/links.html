@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="bg" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Връзки</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+</head>
+<body>
+<header>
+    <h1>Мониторинг на мрежата</h1>
+    <nav>
+        <a th:href="@{/}">Начало</a>
+        <a th:href="@{/devices}">Устройства</a>
+        <a th:href="@{/links}">Връзки</a>
+        <span class="user" th:if="${currentUser}" th:text="${currentUser + (isAdmin ? ' (администратор)' : ' (наблюдател)')}"></span>
+        <form th:if="${currentUser}" th:action="@{/logout}" method="post" class="inline">
+            <button type="submit" class="link-btn">Изход</button>
+        </form>
+    </nav>
+</header>
+<main>
+    <div class="toolbar">
+        <h2>Карта на мрежата</h2>
+        <a class="btn" th:if="${isAdmin}" th:href="@{/links/new}">+ Добави връзка</a>
+    </div>
+    <p class="flash" th:if="${message}" th:text="${message}"></p>
+
+    <div id="topology" class="topology"></div>
+    <p class="hint">Зелено = работи, червено = проблем, сиво = непроверено. Възлите могат да се местят с мишката;
+        двоен клик отваря устройството.</p>
+
+    <h3>Връзки</h3>
+    <p th:if="${links.isEmpty()}">Няма добавени връзки.</p>
+    <table th:unless="${links.isEmpty()}">
+        <thead>
+        <tr><th>Статус</th><th>Устройство A</th><th>Устройство B</th><th>Описание</th>
+            <th>Трафик</th><th>Натоварване</th><th th:if="${isAdmin}"></th></tr>
+        </thead>
+        <tbody>
+        <tr th:each="l : ${links}">
+            <td><span class="badge" th:classappend="${#strings.toLowerCase(l.status())}" th:text="${l.status()}"></span></td>
+            <td><a th:href="@{/devices/{id}(id=${l.deviceAId()})}" th:text="${l.deviceAName()}"></a>
+                <div th:if="${l.interfaceA()}"><small th:text="${l.interfaceA()}"></small></div></td>
+            <td><a th:href="@{/devices/{id}(id=${l.deviceBId()})}" th:text="${l.deviceBName()}"></a>
+                <div th:if="${l.interfaceB()}"><small th:text="${l.interfaceB()}"></small></div></td>
+            <td th:text="${l.description() != null ? l.description() : '—'}"></td>
+            <td th:text="${l.trafficMbps() != null ? l.trafficMbps() + ' Mbit/s' : '—'}"></td>
+            <td th:text="${l.loadPercent() != null ? l.loadPercent() + ' %' : '—'}"></td>
+            <td th:if="${isAdmin}">
+                <form th:action="@{/links/{id}/delete(id=${l.id()})}" method="post" class="inline"
+                      onsubmit="return confirm('Да се изтрие ли връзката?');">
+                    <button type="submit" class="btn danger">Изтрий</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</main>
+
+<script>
+    const COLORS = { UP: '#2da44e', DOWN: '#cf222e', UNKNOWN: '#8c959f' };
+
+    async function drawTopology() {
+        const res = await fetch('/api/topology');
+        const data = await res.json();
+        const nodes = data.nodes.map(n => ({
+            id: n.id,
+            label: n.label,
+            shape: n.type === 'OTHER' ? 'dot' : 'box',
+            color: { background: COLORS[n.status], border: COLORS[n.status] },
+            font: { color: n.type === 'OTHER' ? '#222' : '#fff' }
+        }));
+        const edges = data.edges.map(e => ({
+            id: e.id, from: e.from, to: e.to, label: e.label,
+            color: COLORS[e.status], width: 3,
+            dashes: e.status !== 'UP'
+        }));
+        const network = new vis.Network(document.getElementById('topology'),
+            { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) },
+            { physics: { stabilization: true }, interaction: { hover: true } });
+        network.on('doubleClick', p => {
+            if (p.nodes.length) window.location = '/devices/' + p.nodes[0];
+        });
+    }
+    drawTopology();
+    setInterval(() => location.reload(), 30000); // обновяване заедно с проверките
+</script>
+</body>
+</html>
